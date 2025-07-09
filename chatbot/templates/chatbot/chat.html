@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chatbot</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h2 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 28px;
+        }
+        #chat {
+            height: 400px;
+            overflow-y: scroll;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            padding: 15px;
+            background-color: white;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 15px;
+        }
+        #message {
+            width: calc(100% - 90px);
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 20px;
+            font-size: 16px;
+            outline: none;
+            transition: border 0.3s, box-shadow 0.3s;
+        }
+        #message:focus {
+            border-color: #3498db;
+            box-shadow: 0 0 8px rgba(52, 152, 219, 0.5);
+        }
+        button {
+            width: 80px;
+            padding: 12px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-left: 10px;
+            transition: background-color 0.3s, transform 0.2s;
+        }
+        button:hover {
+            background-color: #2980b9;
+            transform: scale(1.05);
+        }
+        button:active {
+            transform: scale(0.98);
+        }
+        .message-container {
+            margin-bottom: 15px;
+            opacity: 0;
+            animation: fadeIn 0.3s forwards;
+        }
+        @keyframes fadeIn {
+            to { opacity: 1; }
+        }
+        .user-message {
+            text-align: right;
+            margin-left: 20%;
+        }
+        .bot-message {
+            text-align: left;
+            margin-right: 20%;
+        }
+        .user-message p, .bot-message p {
+            display: inline-block;
+            padding: 10px 15px;
+            border-radius: 18px;
+            margin: 5px 0;
+            max-width: 70%;
+            word-wrap: break-word;
+        }
+        .user-message p {
+            background-color: #3498db;
+            color: white;
+            border-bottom-right-radius: 5px;
+        }
+        .bot-message p {
+            background-color: #ecf0f1;
+            color: #2c3e50;
+            border-bottom-left-radius: 5px;
+        }
+        .typing-indicator {
+            display: inline-block;
+            padding: 10px 15px;
+            background-color: #ecf0f1;
+            border-radius: 18px;
+            border-bottom-left-radius: 5px;
+        }
+        .typing-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #7f8c8d;
+            margin: 0 2px;
+            animation: typingAnimation 1.4s infinite ease-in-out;
+        }
+        .typing-dot:nth-child(1) { animation-delay: 0s; }
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes typingAnimation {
+            0%, 60%, 100% { transform: translateY(0); }
+            30% { transform: translateY(-5px); }
+        }
+        .timestamp {
+            font-size: 12px;
+            color: #95a5a6;
+            margin: 5px 10px;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <h2>Chatbot</h2>
+    <div id="chat"></div>
+    <div style="display: flex;">
+        <input type="text" id="message" placeholder="Type your message here..." />
+        <button onclick="sendMessage()" id="sendBtn">Send</button>
+    </div>
+
+    <script>
+        const socket = new WebSocket('ws://' + window.location.host + '/ws/chat/');
+        const chatBox = document.getElementById("chat");
+        const messageInput = document.getElementById("message");
+        const sendButton = document.getElementById("sendBtn");
+
+        // Allow sending message with Enter key
+        messageInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+        // Show typing indicator when user is typing
+        messageInput.addEventListener('input', function() {
+            if (messageInput.value.trim() !== '') {
+                sendButton.style.backgroundColor = '#2980b9';
+            } else {
+                sendButton.style.backgroundColor = '#3498db';
+            }
+        });
+
+        socket.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            addBotMessage(data.message);
+        };
+
+        function addBotMessage(message) {
+            // Remove typing indicator if present
+            const typingIndicator = document.getElementById('typing-indicator');
+            if (typingIndicator) {
+                typingIndicator.remove();
+            }
+            
+            const now = new Date();
+            const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message-container bot-message';
+            messageDiv.innerHTML = `
+                <p>${message}</p>
+                <span class="timestamp">${timeString}</span>
+            `;
+            chatBox.appendChild(messageDiv);
+            scrollToBottom();
+        }
+
+        function showTypingIndicator() {
+            const typingDiv = document.createElement('div');
+            typingDiv.className = 'message-container bot-message';
+            typingDiv.id = 'typing-indicator';
+            typingDiv.innerHTML = `
+                <div class="typing-indicator">
+                    <span class="typing-dot"></span>
+                    <span class="typing-dot"></span>
+                    <span class="typing-dot"></span>
+                </div>
+            `;
+            chatBox.appendChild(typingDiv);
+            scrollToBottom();
+        }
+
+        function sendMessage() {
+            const message = messageInput.value.trim();
+            if (message === "") return;
+            
+            const now = new Date();
+            const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            
+            // Add user message
+            const userMessageDiv = document.createElement('div');
+            userMessageDiv.className = 'message-container user-message';
+            userMessageDiv.innerHTML = `
+                <p>${message}</p>
+                <span class="timestamp">${timeString}</span>
+            `;
+            chatBox.appendChild(userMessageDiv);
+            
+            // Send to WebSocket
+            socket.send(JSON.stringify({ message }));
+            
+            // Show typing indicator
+            showTypingIndicator();
+            
+            // Clear input
+            messageInput.value = "";
+            sendButton.style.backgroundColor = '#3498db';
+            
+            scrollToBottom();
+        }
+
+        function scrollToBottom() {
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        
+        window.onload = function() {
+            setTimeout(() => {
+                addBotMessage("Hello! How can I help you today?");
+            }, 500);
+        };
+    </script>
+</body>
+</html>
